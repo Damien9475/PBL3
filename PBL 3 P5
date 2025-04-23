@@ -1,0 +1,42 @@
+import tkinter as tk
+from tkinter import ttk
+
+def afficher_classement(donnees):
+    # Créer la fenêtre principale
+    fenetre = tk.Tk()
+    fenetre.title("Classement des Athlètes")
+
+    # Créer un widget Treeview pour afficher les données
+    tree = ttk.Treeview(fenetre, columns=("Nom", "ScoreGlobal", "Genre"), show="headings")
+    tree.heading("Nom", text="Nom")
+    tree.heading("ScoreGlobal", text="Score Global")
+    tree.heading("Genre", text="Genre")
+    tree.pack(fill=tk.BOTH, expand=True)
+
+    # Remplir le Treeview avec les données
+    for athlete in donnees:
+        tree.insert("", tk.END, values=(athlete['FullName'], athlete['ScoreGlobal'], athlete['Gender']))
+
+    # Ajouter des filtres
+    def filtrer_par_genre(genre):
+        for athlete in tree.get_children():
+            if tree.set(athlete, 'Genre') == genre:
+                tree.detach(athlete)
+            else:
+                tree.reattach(athlete, "", "end")
+
+    # Boutons de filtre
+    bouton_hommes = tk.Button(fenetre, text="Hommes", command=lambda: filtrer_par_genre("Male"))
+    bouton_hommes.pack(side=tk.LEFT, padx=5)
+
+    bouton_femmes = tk.Button(fenetre, text="Femmes", command=lambda: filtrer_par_genre("Female"))
+    bouton_femmes.pack(side=tk.LEFT, padx=5)
+
+    bouton_tous = tk.Button(fenetre, text="Tous", command=lambda: filtrer_par_genre(""))
+    bouton_tous.pack(side=tk.LEFT, padx=5)
+
+    # Lancer la boucle principale de l'application
+    fenetre.mainloop()
+
+# Exemple d'utilisation
+afficher_classement(donnees_nettoyees)

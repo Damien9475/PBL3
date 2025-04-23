@@ -1,0 +1,59 @@
+def tri_insertion(donnees):
+    for i in range(1, len(donnees)):
+        cle = donnees[i]
+        j = i - 1
+        # Décaler les éléments de donnees[0..i-1], qui sont plus grands que cle,
+        # pour laisser la place pour insérer cle
+        while j >= 0 and donnees[j]['ScoreGlobal'] > cle['ScoreGlobal']:
+            donnees[j + 1] = donnees[j]
+            j -= 1
+        donnees[j + 1] = cle
+    return donnees
+
+
+def tri_selection(donnees):
+    for i in range(len(donnees)):
+        # Trouver l'index de l'élément minimum dans le reste de la liste
+        min_index = i
+        for j in range(i + 1, len(donnees)):
+            if donnees[j]['ScoreGlobal'] < donnees[min_index]['ScoreGlobal']:
+                min_index = j
+        # Échanger l'élément trouvé avec le premier élément
+        donnees[i], donnees[min_index] = donnees[min_index], donnees[i]
+    return donnees
+
+
+# Mesure et Comparaison des Temps d'Exécution
+import time
+
+def mesurer_temps_execution(algorithme, donnees):
+    debut = time.time()
+    algorithme(donnees)
+    fin = time.time()
+    return fin - debut
+
+# Exemple d'utilisation
+donnees_copie = donnees_nettoyees.copy()
+temps_insertion = mesurer_temps_execution(tri_insertion, donnees_copie)
+
+donnees_copie = donnees_nettoyees.copy()
+temps_selection = mesurer_temps_execution(tri_selection, donnees_copie)
+
+print(f"Temps d'exécution (Insertion) : {temps_insertion} secondes")
+print(f"Temps d'exécution (Sélection) : {temps_selection} secondes")
+
+
+# Affichage des Résultats
+import matplotlib.pyplot as plt
+
+def afficher_comparaison(temps_insertion, temps_selection):
+    algorithmes = ['Insertion', 'Sélection']
+    temps = [temps_insertion, temps_selection]
+
+    plt.bar(algorithmes, temps)
+    plt.ylabel('Temps d\'exécution (secondes)')
+    plt.title('Comparaison des Temps d\'Exécution des Algorithmes de Tri')
+    plt.show()
+
+# Exemple d'utilisation
+afficher_comparaison(temps_insertion, temps_selection)

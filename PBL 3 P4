@@ -1,0 +1,65 @@
+def repartir_en_equipes(donnees, nombre_equipes, equilibrer_genre=False):
+    # Trier les athlètes par ScoreGlobal
+    donnees_triees = sorted(donnees, key=lambda x: x['ScoreGlobal'])
+
+    # Initialiser les équipes
+    equipes = [[] for _ in range(nombre_equipes)]
+
+    # Répartir les athlètes
+    for i, athlete in enumerate(donnees_triees):
+        equipe_index = i % nombre_equipes
+        equipes[equipe_index].append(athlete)
+
+    # Si nécessaire, équilibrer les genres dans chaque équipe
+    if equilibrer_genre:
+        for equipe in equipes:
+            hommes = [a for a in equipe if a['Gender'] == 'Male']
+            femmes = [a for a in equipe if a['Gender'] == 'Female']
+            equipe_equilibree = []
+            while hommes and femmes:
+                equipe_equilibree.append(hommes.pop())
+                equipe_equilibree.append(femmes.pop())
+            equipe[:] = equipe_equilibree
+
+    return equipes
+
+# Exemple d'utilisation
+nombre_equipes = 3
+equipes_equilibrees = repartir_en_equipes(donnees_nettoyees, nombre_equipes, equilibrer_genre=True)
+
+# Afficher les équipes
+for i, equipe in enumerate(equipes_equilibrees):
+    print(f"Équipe {i+1}:")
+    for athlete in equipe:
+        print(f"  - {athlete['FullName']} (Score: {athlete['ScoreGlobal']})")
+
+
+# +compliquer :
+from sklearn.cluster import KMeans
+import numpy as np
+
+def former_equipes_kmeans(donnees, nombre_equipes):
+    # Extraire les scores globaux pour former les caractéristiques
+    scores_globaux = np.array([athlete['ScoreGlobal'] for athlete in donnees]).reshape(-1, 1)
+
+    # Appliquer K-Means
+    kmeans = KMeans(n_clusters=nombre_equipes, random_state=0)
+    kmeans.fit(scores_globaux)
+
+    # Assigner chaque athlète à une équipe
+    equipes = {i: [] for i in range(nombre_equipes)}
+    for i, athlete in enumerate(donnees):
+        equipe_index = kmeans.labels_[i]
+        equipes[equipe_index].append(athlete)
+
+    return equipes
+
+# Exemple d'utilisation
+nombre_equipes = 3
+equipes_kmeans = former_equipes_kmeans(donnees_nettoyees, nombre_equipes)
+
+# Afficher les équipes
+for i, equipe in equipes_kmeans.items():
+    print(f"Équipe {i+1}:")
+    for athlete in equipe:
+        print(f"  - {athlete['FullName']} (Score: {athlete['ScoreGlobal']})")

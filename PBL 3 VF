@@ -1,0 +1,199 @@
+import csv
+import time
+import numpy as np
+from sklearn.cluster import KMeans
+import tkinter as tk
+from tkinter import ttk
+
+def convert_time(time_str):
+    """
+    Convert a time string in the format "HH:MM:SS" to seconds.
+
+    :param time_str: Time string in the format "HH:MM:SS".
+    :return: Time in seconds as an integer.
+    """
+    h, m, s = map(int, time_str.split(':'))
+    return h * 3600 + m * 60 + s
+
+def load_csv(file_path):
+    """
+    Load data from a CSV file.
+
+    :param file_path: Path to the CSV file.
+    :return: List of dictionaries containing the data.
+    """
+    with open(file_path, mode='r', newline='', encoding='utf-8') as file:
+        csv_reader = csv.DictReader(file)
+        data = [row for row in csv_reader]
+    return data
+
+def clean_data(data):
+    """
+    Clean and preprocess the data.
+
+    :param data: List of dictionaries containing raw data.
+    :return: Cleaned data with converted times and filtered rows.
+    """
+    for athlete in data:
+        # Convert times to seconds
+        athlete['SwimTimeConverted'] = convert_time(athlete['SwimTimeConverted'])
+        athlete['BikeTimeConverted'] = convert_time(athlete['BikeTimeConverted'])
+        athlete['RunTimeConverted'] = convert_time(athlete['RunTimeConverted'])
+        athlete['Transition1TimeConverted'] = convert_time(athlete['Transition1TimeConverted'])
+        athlete['Transition2TimeConverted'] = convert_time(athlete['Transition2TimeConverted'])
+        athlete['FinishTimeConverted'] = convert_time(athlete['FinishTimeConverted'])
+
+        # Handle missing values by filling with 0
+        for key in athlete:
+            if athlete[key] == '':
+                athlete[key] = 0
+
+    # Filter out rows with invalid FinishTime or EventStatus
+    filtered_data = [
+        athlete for athlete in data
+        if athlete['FinishTimeConverted'] != 0 and athlete['EventStatus'] not in ['DNF', 'DNS', 'DQ']
+    ]
+
+    return filtered_data
+
+def calculate_global_score(athlete, weights):
+    """
+    Calculate the global score for an athlete using weighted times.
+
+    :param athlete: Dictionary containing athlete data with converted times.
+    :param weights: Dictionary containing weights for each discipline.
+    :return: Global score for the athlete.
+    """
+    score = (
+        weights['alpha'] * athlete['SwimTimeConverted'] +
+        weights['beta'] * athlete['BikeTimeConverted'] +
+        weights['gamma'] * athlete['RunTimeConverted'] +
+        weights['delta'] * athlete['Transition1TimeConverted'] +
+        weights['epsilon'] * athlete['Transition2TimeConverted']
+    )
+    return score
+
+def insertion_sort(data):
+    """
+    Sort data using the insertion sort algorithm based on global score.
+
+    :param data: List of dictionaries containing athlete data with global scores.
+    :return: Sorted data.
+    """
+    for i in range(1, len(data)):
+        key = data[i]
+        j = i - 1
+        while j >= 0 and data[j]['ScoreGlobal'] > key['ScoreGlobal']:
+            data[j + 1] = data[j]
+            j -= 1
+        data[j + 1] = key
+    return data
+
+def selection_sort(data):
+    """
+    Sort data using the selection sort algorithm based on global score.
+
+    :param data: List of dictionaries containing athlete data with global scores.
+    :return: Sorted data.
+    """
+    for i in range(len(data)):
+        min_index = i
+        for j in range(i + 1, len(data)):
+            if data[j]['ScoreGlobal'] < data[min_index]['ScoreGlobal']:
+                min_index = j
+        data[i], data[min_index] = data[min_index], data[i]
+    return data
+
+def measure_execution_time(algorithm, data):
+    """
+    Measure the execution time of a sorting algorithm.
+
+    :param algorithm: Sorting algorithm function.
+    :param data: List of dictionaries containing athlete data.
+    :return: Execution time in seconds.
+    """
+    start_time = time.time()
+    algorithm(data)
+    end_time = time.time()
+    return end_time - start_time
+
+def form_teams_kmeans(data, num_teams):
+    """
+    Form balanced teams using the K-Means algorithm.
+
+    :param data: List of dictionaries containing athlete data with global scores.
+    :param num_teams: Number of teams to form.
+    :return: Dictionary with teams and their members.
+    """
+    global_scores = np.array([athlete['ScoreGlobal'] for athlete in data]).reshape(-1, 1)
+    kmeans = KMeans(n_clusters=num_teams, random_state=0)
+    kmeans.fit(global_scores)
+
+    teams = {i: [] for i in range(num_teams)}
+    for i, athlete in enumerate(data):
+        team_index = kmeans.labels_[i]
+        teams[team_index].append(athlete)
+
+    return teams
+
+def display_ranking(data):
+    """
+    Display athlete rankings using a Tkinter interface.
+
+    :param data: List of dictionaries containing athlete data with global scores.
+    """
+    root = tk.Tk()
+    root.title("Athlete Rankings")
+
+    tree = ttk.Treeview(root, columns=("Name", "GlobalScore", "Gender"), show="headings")
+    tree.heading("Name", text="Name")
+    tree.heading("GlobalScore", text="Global Score")
+    tree.heading("Gender", text="Gender")
+    tree.pack(fill=tk.BOTH, expand=True)
+
+    for athlete in data:
+        tree.insert("", tk.END, values=(athlete['FullName'], athlete['ScoreGlobal'], athlete['Gender']))
+
+    def filter_by_gender(gender):
+        for athlete in tree.get_children():
+            if tree.set(athlete, 'Gender') != gender:
+                tree.detach(athlete)
+
+    male_button = tk.Button(root, text="Male", command=lambda: filter_by_gender("Male"))
+    male_button.pack(side=tk.LEFT, padx=5)
+
+    female_button = tk.Button(root, text="Female", command=lambda: filter_by_gender("Female"))
+    female_button.pack(side=tk.LEFT, padx=5)
+
+    all_button = tk.Button(root, text="All", command=lambda: filter_by_gender(""))
+    all_button.pack(side=tk.LEFT, padx=5)
+
+    root.mainloop()
+
+# Example usage
+data = load_csv('results.csv')
+cleaned_data = clean_data(data)
+weights = {'alpha': 0.2, 'beta': 0.3, 'gamma': 0.3, 'delta': 0.1, 'epsilon': 0.1}
+
+for athlete in cleaned_data:
+    athlete['ScoreGlobal'] = calculate_global_score(athlete, weights)
+
+# Measure sorting algorithm times
+insertion_time = measure_execution_time(insertion_sort, cleaned_data.copy())
+selection_time = measure_execution_time(selection_sort, cleaned_data.copy())
+
+print(f"Insertion Sort Time: {insertion_time} seconds")
+print(f"Selection Sort Time: {selection_time} seconds")
+
+# Form teams
+num_teams = 3
+teams = form_teams_kmeans(cleaned_data, num_teams)
+
+# Display teams
+for i, team in teams.items():
+    print(f"Team {i+1}:")
+    for athlete in team:
+        print(f"  - {athlete['FullName']} (Score: {athlete['ScoreGlobal']})")
+
+# Display ranking interface
+display_ranking(cleaned_data)

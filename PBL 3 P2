@@ -1,0 +1,59 @@
+def calculer_score_global(athlete, poids):
+    """
+    Calcule le score global d'un athlète en utilisant des poids pour chaque discipline.
+
+    :param athlete: Dictionnaire contenant les temps convertis pour chaque discipline.
+    :param poids: Dictionnaire contenant les poids pour chaque discipline.
+    :return: Score global de l'athlète.
+    """
+    score = (
+        poids['alpha'] * athlete['SwimTimeConverted'] +
+        poids['beta'] * athlete['BikeTimeConverted'] +
+        poids['gamma'] * athlete['RunTimeConverted'] +
+        poids['delta'] * athlete['Transition1TimeConverted'] +
+        poids['epsilon'] * athlete['Transition2TimeConverted']
+    )
+    return score
+
+# Exemple d'utilisation
+poids = {
+    'alpha': 0.2,
+    'beta': 0.3,
+    'gamma': 0.3,
+    'delta': 0.1,
+    'epsilon': 0.1
+}
+
+for athlete in donnees_nettoyees:
+    athlete['ScoreGlobal'] = calculer_score_global(athlete, poids)
+
+
+def normaliser_par_moyenne(donnees, discipline):
+    moyenne = sum(athlete[discipline] for athlete in donnees) / len(donnees)
+    return [athlete[discipline] / moyenne for athlete in donnees]
+
+# Exemple d'utilisation
+temps_normalises = normaliser_par_moyenne(donnees_nettoyees, 'SwimTimeConverted')
+
+
+
+
+import statistics
+
+def normaliser_par_zscore(donnees, discipline):
+    moyenne = statistics.mean(athlete[discipline] for athlete in donnees)
+    ecart_type = statistics.stdev([athlete[discipline] for athlete in donnees])
+    return [(athlete[discipline] - moyenne) / ecart_type for athlete in donnees]
+
+# Exemple d'utilisation
+zscores = normaliser_par_zscore(donnees_nettoyees, 'SwimTimeConverted')
+
+
+
+
+
+def filtrer_par_critere(donnees, critere, valeur):
+    return [athlete for athlete in donnees if athlete[critere] == valeur]
+
+# Exemple d'utilisation
+athletes_femmes = filtrer_par_critere(donnees_nettoyees, 'Gender', 'Female')
