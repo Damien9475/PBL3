@@ -1,49 +1,49 @@
 import csv
 
-def lire_csv(fichier):
+def read_csv(fichier):
     with open(fichier, mode='r', newline='', encoding='utf-8') as file:
         lecteur_csv = csv.DictReader(file)
         donnees = [ligne for ligne in lecteur_csv]
     return donnees
 
 # Exemple d'utilisation
-donnees_athletes = lire_csv('athletes.csv')
+donnees_athletes = read_csv('athletes.csv')
 
-def convertir_temps(temps):
+def convert_time(time):
     # Supposons que le temps est sous la forme "HH:MM:SS"
-    h, m, s = map(int, temps.split(':'))
+    h, m, s = map(int, time.split(':'))
     return h * 3600 + m * 60 + s
 
-def nettoyer_donnees(donnees):
-    for athlete in donnees:
+def clean_data(data):
+    for athlete in data:
         # Convertir les temps
-        athlete['SwimTimeConverted'] = convertir_temps(athlete['SwimTime'])
-        athlete['BikeTimeConverted'] = convertir_temps(athlete['BikeTime'])
-        athlete['RunTimeConverted'] = convertir_temps(athlete['RunTime'])
-        athlete['Transition1TimeConverted'] = convertir_temps(athlete['Transition1Time'])
-        athlete['Transition2TimeConverted'] = convertir_temps(athlete['Transition2Time'])
-        athlete['FinishTimeConverted'] = convertir_temps(athlete['FinishTime'])
+        athlete['SwimTimeConverted'] = convert_time(athlete['SwimTime'])
+        athlete['BikeTimeConverted'] = convert_time(athlete['BikeTime'])
+        athlete['RunTimeConverted'] = convert_time(athlete['RunTime'])
+        athlete['Transition1TimeConverted'] = convert_time(athlete['Transition1Time'])
+        athlete['Transition2TimeConverted'] = convert_time(athlete['Transition2Time'])
+        athlete['FinishTimeConverted'] = convert_time(athlete['FinishTime'])
 
         # Gérer les valeurs manquantes (exemple : remplir avec 0)
-        for cle in athlete:
-            if athlete[cle] == '':
-                athlete[cle] = 0
+        for key in athlete:
+            if athlete[key] == '':
+                athlete[key] = 0
 
     # Supprimer les lignes avec FinishTimeConverted égal à 00:00:00
-    donnees_filtrees = [
-    athlete for athlete in donnees
+    filtered_data = [
+    athlete for athlete in data
     if athlete['EventStatus'] not in ['DNF', 'DNS', 'DQ']
 ]
 
 
-    return donnees_filtrees
+    return filtered_data
 
 # Exemple d'utilisation
-donnees_nettoyees = nettoyer_donnees(donnees_athletes)
+donnees_nettoyees = clean_data(donnees_athletes)
 
 
-def filtrer_athletes(donnees):
+def filter_athletes(donnees):
     return [athlete for athlete in donnees if athlete['EventStatus'] == 'Finished']
 
 # Exemple d'utilisation
-athletes_filtres = filtrer_athletes(donnees_nettoyees)
+athletes_filtres = filter_athletes(donnees_nettoyees)
