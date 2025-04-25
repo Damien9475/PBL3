@@ -1,0 +1,220 @@
+import csv
+import time
+import numpy as np
+from sklearn.cluster import KMeans
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+
+def convert_time(time_str):
+    """Convert a time string in the format "HH:MM:SS" to seconds."""
+    try:
+        if isinstance(time_str, str) and ':' in time_str:
+            h, m, s = map(int, time_str.split(':'))
+            return h * 3600 + m * 60 + s
+        return int(float(time_str))
+    except:
+        return 0
+
+def load_csv(file_path):
+    """Load data from a CSV file."""
+    with open(file_path, mode='r', newline='', encoding='utf-8') as file:
+        csv_reader = csv.DictReader(file)
+        data = [row for row in csv_reader]
+    return data
+
+def save_csv(file_path, data):
+    """Save data to a CSV file."""
+    keys = data[0].keys()
+    with open(file_path, 'w', newline='', encoding='utf-8') as output_file:
+        dict_writer = csv.DictWriter(output_file, fieldnames=keys)
+        dict_writer.writeheader()
+        dict_writer.writerows(data)
+
+def clean_data(data):
+    """Clean and preprocess the data."""
+    for athlete in data:
+        athlete['SwimTimeConverted'] = convert_time(athlete.get('SwimTimeConverted', 0))
+        athlete['BikeTimeConverted'] = convert_time(athlete.get('BikeTimeConverted', 0))
+        athlete['RunTimeConverted'] = convert_time(athlete.get('RunTimeConverted', 0))
+        athlete['Transition1TimeConverted'] = convert_time(athlete.get('Transition1TimeConverted', 0))
+        athlete['Transition2TimeConverted'] = convert_time(athlete.get('Transition2TimeConverted', 0))
+        athlete['FinishTimeConverted'] = convert_time(athlete.get('FinishTimeConverted', 0))
+
+        for key in athlete:
+            if athlete[key] in ['', 'NA', 'null', None]:
+                athlete[key] = 0
+
+    filtered_data = [
+        athlete for athlete in data
+        if athlete['FinishTimeConverted'] != 0 and athlete.get('EventStatus') not in ['DNF', 'DNS', 'DQ']
+    ]
+
+    return filtered_data
+
+def calculate_global_scores(data, weights):
+    """Calculate the global score for each athlete using weighted times."""
+    for athlete in data:
+        athlete['ScoreGlobal'] = (
+            weights['alpha'] * athlete['SwimTimeConverted'] +
+            weights['beta'] * athlete['BikeTimeConverted'] +
+            weights['gamma'] * athlete['RunTimeConverted'] +
+            weights['delta'] * athlete['Transition1TimeConverted'] +
+            weights['epsilon'] * athlete['Transition2TimeConverted']
+        )
+    return data
+
+def insertion_sort(data):
+    """Sort data using the insertion sort algorithm based on global score."""
+    for i in range(1, len(data)):
+        key = data[i]
+        j = i - 1
+        while j >= 0 and data[j]['ScoreGlobal'] > key['ScoreGlobal']:
+            data[j + 1] = data[j]
+            j -= 1
+        data[j + 1] = key
+    return data
+
+def form_teams_kmeans(data, num_teams, team_size):
+    """Form balanced teams using the K-Means algorithm."""
+    global_scores = np.array([athlete['ScoreGlobal'] for athlete in data]).reshape(-1, 1)
+    kmeans = KMeans(n_clusters=num_teams, random_state=0, n_init=10)
+    kmeans.fit(global_scores)
+
+    teams = [[] for _ in range(num_teams)]
+    for i, athlete in enumerate(data):
+        team_index = kmeans.labels_[i]
+        if len(teams[team_index]) < team_size:
+            teams[team_index].append(athlete)
+
+    # Calculate mean score for each team
+    team_mean_scores = []
+    for team in teams:
+        total_score = sum(athlete['ScoreGlobal'] for athlete in team)
+        mean_score = total_score / len(team) if team else 0
+        team_mean_scores.append(mean_score)
+
+    return teams, team_mean_scores
+
+def display_ranking(data, gender_filter=None):
+    """Display athlete rankings using a Tkinter interface."""
+    root = tk.Tk()
+    root.title("Athlete Rankings")
+
+    tree = ttk.Treeview(root, columns=("Name", "GlobalScore", "Gender"), show="headings")
+    tree.heading("Name", text="Name")
+    tree.heading("GlobalScore", text="Global Score")
+    tree.heading("Gender", text="Gender")
+    tree.pack(fill=tk.BOTH, expand=True)
+
+    # Apply gender filter if provided
+    for athlete in data:
+        if gender_filter and athlete['Gender'] != gender_filter:
+            continue
+        tree.insert("", tk.END, values=(athlete.get('FullName'), athlete.get('ScoreGlobal'), athlete.get('Gender')))
+
+    def filter_by_gender(gender):
+        for child in tree.get_children():
+            tree.detach(child)
+        if gender:
+            for child in tree.get_children():
+                if tree.set(child, 'Gender') != gender:
+                    tree.detach(child)
+        else:
+            for child in tree.get_children():
+                tree.reattach(child, '', 'end')  # Reset view
+
+    male_button = tk.Button(root, text="Male", command=lambda: filter_by_gender("M"))
+    male_button.pack(side=tk.LEFT, padx=5)
+
+    female_button = tk.Button(root, text="Female", command=lambda: filter_by_gender("F"))
+    female_button.pack(side=tk.LEFT, padx=5)
+
+    all_button = tk.Button(root, text="All", command=lambda: filter_by_gender(""))
+    all_button.pack(side=tk.LEFT, padx=5)
+
+    root.mainloop()
+
+def main():
+    root = tk.Tk()
+    root.title("Simple Triathlon Performance Analyzer")
+
+    file_path = tk.StringVar(value="No file selected")
+    data = []
+    weights = {
+        'alpha': 0.2,
+        'beta': 0.3,
+        'gamma': 0.3,
+        'delta': 0.1,
+        'epsilon': 0.1
+    }
+
+    num_teams_var = tk.IntVar(value=3)
+    team_size_var = tk.IntVar(value=5)  # Default team size
+
+    def load_file():
+        nonlocal data
+        file_path_val = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
+        if file_path_val:
+            file_path.set(file_path_val)
+            data = load_csv(file_path_val)
+            cleaned_data = clean_data(data)
+            save_csv("cleaned_data.csv", cleaned_data)
+            scored_data = calculate_global_scores(cleaned_data, weights)
+            save_csv("scored_data.csv", scored_data)
+            data = scored_data  # Update the main data reference
+            messagebox.showinfo("File Loaded", f"Data loaded and saved to 'cleaned_data.csv' and 'scored_data.csv'.")
+
+    def display_rankings():
+        if data:
+            sorted_data = insertion_sort(data.copy())  # Sort using insertion sort
+            display_ranking(sorted_data, gender_filter=None)
+        else:
+            messagebox.showwarning("No Data", "Please load data first.")
+
+    def display_top_100():
+        if data:
+            sorted_data = insertion_sort(data.copy())  # Sort using insertion sort
+            top_100 = sorted_data[:100]
+            display_ranking(top_100, gender_filter=None)
+        else:
+            messagebox.showwarning("No Data", "Please load data first.")
+
+    def form_teams():
+        if data:
+            cleaned_data = clean_data(data)
+            scored_data = calculate_global_scores(cleaned_data, weights)
+            num_teams = num_teams_var.get()
+            team_size = team_size_var.get()
+            teams, team_mean_scores = form_teams_kmeans(scored_data, num_teams, team_size)
+            team_info = "\n".join([
+                f"Team {i+1} (Mean Score: {team_mean_scores[i]:.2f}): " + ", ".join([athlete['FullName'] for athlete in team])
+                for i, team in enumerate(teams)
+            ])
+            messagebox.showinfo("Teams Formed", team_info)
+            # Suggestions for Improvement
+            messagebox.showinfo("Suggestions", "Consider adjusting the number of teams or athletes per team for better balance.")
+
+        else:
+            messagebox.showwarning("No Data", "Please load data first.")
+
+    # File Loading Section
+    tk.Label(root, text="Load CSV File:").pack(pady=5)
+    tk.Entry(root, textvariable=file_path, width=50, state='readonly').pack(pady=5)
+    tk.Button(root, text="Browse", command=load_file).pack(pady=5)
+
+    # Team formation settings
+    tk.Label(root, text="Number of teams:").pack(pady=5)
+    tk.Spinbox(root, from_=1, to=20, textvariable=num_teams_var).pack(pady=5)
+
+    tk.Label(root, text="Number of people per team:").pack(pady=5)
+    tk.Spinbox(root, from_=1, to=20, textvariable=team_size_var).pack(pady=5)
+
+    # Buttons for Actions
+    tk.Button(root, text="Display Rankings", command=display_rankings).pack(pady=10)
+    tk.Button(root, text="Display Top 100 Athletes", command=display_top_100).pack(pady=10)
+    tk.Button(root, text="Form Teams", command=form_teams).pack(pady=10)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()

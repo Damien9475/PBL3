@@ -1,0 +1,272 @@
+import csv
+import time
+import numpy as np
+from sklearn.cluster import KMeans
+import tkinter as tk
+from tkinter import ttk
+
+def convert_time(time_str):
+    """
+    Convert a time string in the format "HH:MM:SS" to seconds.
+
+    :param time_str: Time string in the format "HH:MM:SS".
+    :return: Time in seconds as an integer.
+    """
+    h, m, s = map(int, time_str.split(':'))
+    return h * 3600 + m * 60 + s
+
+def load_csv(file_path):
+    """
+    Load data from a CSV file.
+
+    :param file_path: Path to the CSV file.
+    :return: List of dictionaries containing the data.
+    """
+    with open(file_path, mode='r', newline='', encoding='utf-8') as file:
+        csv_reader = csv.DictReader(file)
+        data = [row for row in csv_reader]
+    return data
+
+def clean_data(data):
+    """
+    Clean and preprocess the data.
+
+    :param data: List of dictionaries containing raw data.
+    :return: Cleaned data with converted times and filtered rows.
+    """
+    for athlete in data:
+        # Convert times to seconds
+        athlete['SwimTimeConverted'] = convert_time(athlete['SwimTimeConverted'])
+        athlete['BikeTimeConverted'] = convert_time(athlete['BikeTimeConverted'])
+        athlete['RunTimeConverted'] = convert_time(athlete['RunTimeConverted'])
+        athlete['Transition1TimeConverted'] = convert_time(athlete['Transition1TimeConverted'])
+        athlete['Transition2TimeConverted'] = convert_time(athlete['Transition2TimeConverted'])
+        athlete['FinishTimeConverted'] = convert_time(athlete['FinishTimeConverted'])
+
+        # Handle missing values by filling with 0
+        for key in athlete:
+            if athlete[key] == '':
+                athlete[key] = 0
+
+    # Filter out rows with invalid FinishTime or EventStatus
+    filtered_data = [
+        athlete for athlete in data
+        if athlete['FinishTimeConverted'] != 0 and athlete['EventStatus'] not in ['DNF', 'DNS', 'DQ']
+    ]
+
+    return filtered_data
+
+def calculate_global_score(athlete, weights):
+    """
+    Calculate the global score for an athlete using weighted times.
+
+    :param athlete: Dictionary containing athlete data with converted times.
+    :param weights: Dictionary containing weights for each discipline.
+    :return: Global score for the athlete.
+    """
+    score = (
+        weights['alpha'] * athlete['SwimTimeConverted'] +
+        weights['beta'] * athlete['BikeTimeConverted'] +
+        weights['gamma'] * athlete['RunTimeConverted'] +
+        weights['delta'] * athlete['Transition1TimeConverted'] +
+        weights['epsilon'] * athlete['Transition2TimeConverted']
+    )
+    return score
+
+def insertion_sort(data):
+    """
+    Sort data using the insertion sort algorithm based on global score.
+
+    :param data: List of dictionaries containing athlete data with global scores.
+    :return: Sorted data.
+    """
+    for i in range(1, len(data)):
+        key = data[i]
+        j = i - 1
+        while j >= 0 and data[j]['ScoreGlobal'] > key['ScoreGlobal']:
+            data[j + 1] = data[j]
+            j -= 1
+        data[j + 1] = key
+    return data
+
+def selection_sort(data):
+    """
+    Sort data using the selection sort algorithm based on global score.
+
+    :param data: List of dictionaries containing athlete data with global scores.
+    :return: Sorted data.
+    """
+    for i in range(len(data)):
+        min_index = i
+        for j in range(i + 1, len(data)):
+            if data[j]['ScoreGlobal'] < data[min_index]['ScoreGlobal']:
+                min_index = j
+        data[i], data[min_index] = data[min_index], data[i]
+    return data
+
+def measure_execution_time(algorithm, data):
+    """
+    Measure the execution time of a sorting algorithm.
+
+    :param algorithm: Sorting algorithm function.
+    :param data: List of dictionaries containing athlete data.
+    :return: Execution time in seconds.
+    """
+    start_time = time.time()
+    algorithm(data)
+    end_time = time.time()
+    return end_time - start_time
+
+def form_teams_kmeans(data, num_teams):
+    """
+    Form balanced teams using the K-Means algorithm.
+
+    :param data: List of dictionaries containing athlete data with global scores.
+    :param num_teams: Number of teams to form.
+    :return: Dictionary with teams and their members.
+    """
+    global_scores = np.array([athlete['ScoreGlobal'] for athlete in data]).reshape(-1, 1)
+    kmeans = KMeans(n_clusters=num_teams, random_state=0)
+    kmeans.fit(global_scores)
+
+    teams = {i: [] for i in range(num_teams)}
+    for i, athlete in enumerate(data):
+        team_index = kmeans.labels_[i]
+        teams[team_index].append(athlete)
+
+    return teams
+
+
+# Example usage
+data = load_csv('results.csv')
+cleaned_data = clean_data(data)
+weights = {'alpha': 0.2, 'beta': 0.3, 'gamma': 0.3, 'delta': 0.1, 'epsilon': 0.1}
+
+for athlete in cleaned_data:
+    athlete['ScoreGlobal'] = calculate_global_score(athlete, weights)
+
+# Measure sorting algorithm times
+insertion_time = measure_execution_time(insertion_sort, cleaned_data.copy())
+selection_time = measure_execution_time(selection_sort, cleaned_data.copy())
+
+print(f"Insertion Sort Time: {insertion_time} seconds")
+print(f"Selection Sort Time: {selection_time} seconds")
+
+# Form teams
+num_teams = 3
+teams = form_teams_kmeans(cleaned_data, num_teams)
+
+# interface 
+
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
+class AthleteAnalysisApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Athlete Analysis")
+
+        self.data = None
+        self.cleaned_data = None
+        self.weights = {'alpha': 0.2, 'beta': 0.3, 'gamma': 0.3, 'delta': 0.1, 'epsilon': 0.1}
+        self.teams = None
+
+        # Create buttons for each functionality
+        self.load_button = tk.Button(root, text="Load CSV File", command=self.load_csv_gui)
+        self.load_button.pack(pady=10)
+
+        self.clean_button = tk.Button(root, text="Clean Data", command=self.clean_data_gui, state=tk.DISABLED)
+        self.clean_button.pack(pady=10)
+
+        self.calculate_button = tk.Button(root, text="Calculate Global Scores", command=self.calculate_scores_gui, state=tk.DISABLED)
+        self.calculate_button.pack(pady=10)
+
+        self.sort_button = tk.Button(root, text="Sort Athletes by Global Score", command=self.sort_data_gui, state=tk.DISABLED)
+        self.sort_button.pack(pady=10)
+
+        self.time_button = tk.Button(root, text="Measure Sorting Time", command=self.measure_time_gui, state=tk.DISABLED)
+        self.time_button.pack(pady=10)
+
+        self.team_button = tk.Button(root, text="Form Teams (K-Means)", command=self.form_teams_gui, state=tk.DISABLED)
+        self.team_button.pack(pady=10)
+
+        # Listbox for displaying sorted athletes
+        self.sorted_listbox = tk.Listbox(root, width=100, height=10)
+        self.sorted_listbox.pack(pady=10)
+
+        # Listbox for displaying formed teams
+        self.teams_listbox = tk.Listbox(root, width=100, height=10)
+        self.teams_listbox.pack(pady=10)
+
+    def load_csv_gui(self):
+        """Load the CSV file and enable further functionality."""
+        file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
+        if file_path:
+            self.data = load_csv(file_path)
+            self.clean_button.config(state=tk.NORMAL)
+            messagebox.showinfo("Success", "CSV file loaded successfully!")
+
+    def clean_data_gui(self):
+        """Clean the data."""
+        if self.data:
+            self.cleaned_data = clean_data(self.data)
+            self.calculate_button.config(state=tk.NORMAL)
+            messagebox.showinfo("Success", "Data cleaned successfully!")
+        else:
+            messagebox.showwarning("No Data", "Please load a CSV file first.")
+
+    def calculate_scores_gui(self):
+        """Calculate global scores."""
+        if self.cleaned_data:
+            for athlete in self.cleaned_data:
+                athlete['ScoreGlobal'] = calculate_global_score(athlete, self.weights)
+            self.sort_button.config(state=tk.NORMAL)
+            messagebox.showinfo("Success", "Global scores calculated successfully!")
+        else:
+            messagebox.showwarning("No Data", "Please clean the data first.")
+
+    def sort_data_gui(self):
+        """Sort data and display sorted athletes."""
+        if self.cleaned_data:
+            sorted_data = insertion_sort(self.cleaned_data)
+            self.sorted_listbox.delete(0, tk.END)
+            for athlete in sorted_data:
+                self.sorted_listbox.insert(tk.END, f"{athlete['FullName']}: {athlete['ScoreGlobal']}")
+            self.time_button.config(state=tk.NORMAL)
+            messagebox.showinfo("Success", "Athletes sorted by global score successfully!")
+        else:
+            messagebox.showwarning("No Data", "Please calculate global scores first.")
+
+    def measure_time_gui(self):
+        """Measure the execution time of sorting algorithms."""
+        if self.cleaned_data:
+            insertion_time = measure_execution_time(insertion_sort, self.cleaned_data.copy())
+            selection_time = measure_execution_time(selection_sort, self.cleaned_data.copy())
+            messagebox.showinfo("Sorting Time", f"Insertion Sort Time: {insertion_time} seconds\n"
+                                               f"Selection Sort Time: {selection_time} seconds")
+            self.team_button.config(state=tk.NORMAL)
+        else:
+            messagebox.showwarning("No Data", "Please sort the data first.")
+
+    def form_teams_gui(self):
+        """Form balanced teams using K-Means and display the teams."""
+        if self.cleaned_data:
+            num_teams = 5  # You can change the number of teams
+            self.teams = form_teams_kmeans(self.cleaned_data, num_teams)
+            self.teams_listbox.delete(0, tk.END)
+            for team, members in self.teams.items():
+                self.teams_listbox.insert(tk.END, f"Team {team + 1}:")
+                for member in members:
+                    self.teams_listbox.insert(tk.END, f"  {member['FullName']} - Score: {member['ScoreGlobal']}")
+            messagebox.showinfo("Teams Formed", f"Teams formed successfully! Number of teams: {num_teams}")
+        else:
+            messagebox.showwarning("No Data", "Please measure sorting time first.")
+
+# Run the application
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AthleteAnalysisApp(root)
+    root.mainloop()
