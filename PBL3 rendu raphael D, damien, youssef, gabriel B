@@ -2,8 +2,7 @@ import csv
 import time
 import numpy as np
 from sklearn.cluster import KMeans
-import tkinter as tk
-from tkinter import ttk
+
 
 #================================  Functions ================================
 # This section contains helper functions for data processing and analysis.
